@@ -16,7 +16,9 @@
 
 ### About this Blueprint
 
-... 
+This Blueprint increases or decreases product quantity for a specific subscription via CloudBlue REST-API. I only works if you have one product per subscription! If you have multiple products in the same subscription, only the first will be updated.
+
+> Note: The provisioning of licenses is async and you are not allowed to update a subscription that is currently in provisioning mode.
 
 ![Onify Blueprint: Change subscription in CloudBlue Commerce](blueprint.jpg "Blueprint")
 
@@ -52,11 +54,96 @@ Add the following settings in Onify.
 
 > Note: Creating settings via admin interface add a trailing `_` in key. This is required for flow to work.
 
-## Deploy and run
+## Deploy
 
 1. Open the BPMN diagram in Camunda Modeler.
 2. Deploy the BPMN diagram (click `Deploy current diagram` and follow the steps).
-3. Run it (click `Start current diagram`).
+
+## Run
+
+This workflow should be run as a _adhoc workflow_ and can be part of another process.
+Here is an example how to get a secret using a simple `curl` command.
+
+### Variables
+
+* `subscriptionId` - The id for the subscription
+* `poNumber` - Purchase order number (optional)
+* `changeType` - `increase` or `decrease` the quantity 
+* `units` - Units to either increase or decrease product quantity
+
+### Example request 
+
+```bash
+curl -X 'POST' \
+  '{url}/api/v2/my/workflows/run/cloudblue-commerce-change-subscription?timeout=180' \
+  -H 'accept: application/json' \
+  -H 'authorization: {auth-token}' \
+  -H 'Content-Type: application/json' \
+  -d '{
+ "subscriptionId": 123456,
+ "poNumber": "9999",
+ "changeType": "increase",
+ "units" : 1
+}'
+```
+
+> Note: It can take more than 60 seconds for the order request, so make sure you increase default timeout.
+
+### Error responses
+
+#### Timeout for CloudBlue
+
+It seems that sometime CloudBlue times out...
+
+```json
+{
+  "output": "<html>\r\n<head><title>504 Gateway Time-out</title></head>\r\n<body>\r\n<center><h1>504 Gateway Time-out</h1></center>\r\n<hr><center>nginx</center>\r\n</body>\r\n</html>\r\n",
+  "status": {
+    "statuskey": "complete"
+  }
+}
+```
+
+#### changeType incorrect
+
+```json
+{
+  "statusCode": 502,
+  "message": "<changeType> no conditional flow taken",
+  "error": {
+    "message": "<changeType> no conditional flow taken"
+  }
+}
+```
+
+#### Subscription not found
+
+```json
+{
+  "statusCode": 404,
+  "message": "Response code 404 (Not Found)",
+  "error": {
+    "message": "Response code 404 (Not Found)"
+  }
+}
+```
+
+#### If provisioning already in progress
+
+```json
+{
+  "output": {
+    "correlationId": "a8n-54bc6dc3-f496-84c7-dfe9-f459db8564b3",
+    "status": 500,
+    "message": "Cannot Upgrade/Downgrade Resources for Subscription #123456: there is already an Upgrade/Downgrade Order #CH009999 in status Provisioning is in progress(LO). This order prohibits placing an order of the same order type (per subscription). Please either cancel conflicting order or wait until it is processed by the system.",
+    "path": "/orders",
+    "timeStamp": "2023-02-22T07:45:08.223+00:00"
+  },
+  "status": {
+    "statuskey": "complete"
+  }
+}
+```
 
 ## Support
 
